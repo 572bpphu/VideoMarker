@@ -1,0 +1,32 @@
+﻿## Visual Studio / Build Artifacts
+bin/
+obj/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+[Dd]ebug/
+[Rr]elease/
+
+## NuGet Packages
+packages/*
+!packages/repositories.config
+nuget.exe
+
+## Uploaded Media (Videos are kept locally, ignored from repo)
+uploads/videos/*
+!uploads/videos/.gitkeep
+
+## Sensitive Configuration (DO NOT COMMIT)
+AppSettingsSecrets.config
+
+## Temporary & Cache files
+*.log
+*.tmp
+*.temp
+$tf/
+TestResults/
+Thumbs.db
+ehthumbs.db
+Desktop.ini
