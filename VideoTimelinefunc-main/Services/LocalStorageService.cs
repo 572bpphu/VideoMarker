@@ -17,17 +17,21 @@ namespace VideoTimelineApp.Services
 
     public static class LocalStorageService
     {
-        private const string DefaultStorageSubdir = "D:\\VideoTimelineData\\Videos";
+        private const string DefaultStorageSubdir = "~/App_Data/Videos";
         private static readonly object _syncLock = new object();
 
         private static string GetSettingsFilePath()
         {
             string appData = HostingEnvironment.MapPath("~/App_Data")
                 ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "App_Data");
-            if (!Directory.Exists(appData))
+            try
             {
-                Directory.CreateDirectory(appData);
+                if (!Directory.Exists(appData))
+                {
+                    Directory.CreateDirectory(appData);
+                }
             }
+            catch { }
             return Path.Combine(appData, "storage_settings.json");
         }
 
@@ -50,7 +54,7 @@ namespace VideoTimelineApp.Services
                 }
                 catch
                 {
-                    // Fallback to default/config if file read fails
+                    // Bỏ qua lỗi đọc file, dùng mặc định
                 }
 
                 string configPath = WebConfigurationManager.AppSettings["LocalStoragePath"];
@@ -62,7 +66,7 @@ namespace VideoTimelineApp.Services
                 return new StorageSettingsModel
                 {
                     StoragePath = configPath,
-                    FallbackPaths = new List<string> { configPath, DefaultStorageSubdir }
+                    FallbackPaths = new List<string> { configPath }
                 };
             }
         }
@@ -79,14 +83,62 @@ namespace VideoTimelineApp.Services
                 }
                 catch
                 {
-                    // Ignore or log error
+                    // Bỏ qua lỗi ghi file
+                }
+            }
+        }
+
+        /// <summary>
+        /// Chuyển đổi đường dẫn tương đối (~) hoặc tuyệt đối thành đường dẫn vật lý đầy đủ
+        /// </summary>
+        public static string ResolveDirectory(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return null;
+
+            if (path.StartsWith("~") || !Path.IsPathRooted(path))
+            {
+                return HostingEnvironment.MapPath(path)
+                    ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path.TrimStart('~', '/', '\\'));
+            }
+
+            return path;
+        }
+
+        /// <summary>
+        /// Thư mục an toàn nằm ngay trong project (App_Data/Videos), luôn luôn khả dụng trên mọi máy khi clone git
+        /// </summary>
+        public static string GetSafeFallbackDirectory()
+        {
+            string safePath = HostingEnvironment.MapPath("~/App_Data/Videos")
+                ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "App_Data", "Videos");
+            try
+            {
+                if (!Directory.Exists(safePath))
+                {
+                    Directory.CreateDirectory(safePath);
+                }
+                return safePath;
+            }
+            catch
+            {
+                // Dự phòng cuối cùng: thư mục Temp của Windows
+                try
+                {
+                    string tempDir = Path.Combine(Path.GetTempPath(), "VideoTimelineApp", "Videos");
+                    if (!Directory.Exists(tempDir)) Directory.CreateDirectory(tempDir);
+                    return tempDir;
+                }
+                catch
+                {
+                    return safePath;
                 }
             }
         }
 
         /// <summary>
         /// Lấy đường dẫn thư mục lưu trữ media từ cấu hình người dùng (storage_settings.json),
-        /// hoặc Web.config, hoặc mặc định. Tự động tạo thư mục nếu chưa tồn tại.
+        /// hoặc Web.config, hoặc mặc định (~/App_Data/Videos).
+        /// Tự động kiểm tra tính khả dụng của ổ đĩa và fallback an toàn về thư mục nội bộ nếu đường dẫn trên máy người khác không tồn tại.
         /// </summary>
         public static string GetStorageDirectory()
         {
@@ -94,26 +146,39 @@ namespace VideoTimelineApp.Services
             string configPath = settings.StoragePath;
             if (string.IsNullOrWhiteSpace(configPath))
             {
+                configPath = WebConfigurationManager.AppSettings["LocalStoragePath"];
+            }
+            if (string.IsNullOrWhiteSpace(configPath))
+            {
                 configPath = DefaultStorageSubdir;
             }
 
-            string fullPath;
-            if (Path.IsPathRooted(configPath))
+            string fullPath = ResolveDirectory(configPath);
+
+            // Kiểm tra xem ổ đĩa/đường dẫn có hợp lệ và khả dụng trên máy này không
+            try
             {
-                fullPath = configPath;
+                if (!string.IsNullOrEmpty(fullPath))
+                {
+                    string root = Path.GetPathRoot(fullPath);
+                    // Nếu ổ đĩa tồn tại trên máy hiện tại
+                    if (!string.IsNullOrEmpty(root) && Directory.Exists(root))
+                    {
+                        if (!Directory.Exists(fullPath))
+                        {
+                            Directory.CreateDirectory(fullPath);
+                        }
+                        return fullPath;
+                    }
+                }
             }
-            else
+            catch
             {
-                fullPath = HostingEnvironment.MapPath(configPath)
-                    ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configPath.TrimStart('~', '/', '\\'));
+                // Bỏ qua lỗi ổ đĩa/phân quyền (ví dụ máy người khác không có ổ D:\ hoặc không có user C:\Users\LENOVO)
             }
 
-            if (!Directory.Exists(fullPath))
-            {
-                Directory.CreateDirectory(fullPath);
-            }
-
-            return fullPath;
+            // Tự động fallback an toàn về thư mục nội bộ trong project
+            return GetSafeFallbackDirectory();
         }
 
         /// <summary>
@@ -128,13 +193,46 @@ namespace VideoTimelineApp.Services
             {
                 foreach (var p in settings.FallbackPaths)
                 {
-                    if (!string.IsNullOrWhiteSpace(p) && Directory.Exists(p)) list.Add(p);
+                    try
+                    {
+                        string resolved = ResolveDirectory(p);
+                        if (!string.IsNullOrWhiteSpace(resolved))
+                        {
+                            string root = Path.GetPathRoot(resolved);
+                            if (!string.IsNullOrEmpty(root) && Directory.Exists(root) && Directory.Exists(resolved))
+                            {
+                                list.Add(resolved);
+                            }
+                        }
+                    }
+                    catch { }
                 }
             }
 
             string configPath = WebConfigurationManager.AppSettings["LocalStoragePath"];
-            if (!string.IsNullOrWhiteSpace(configPath) && Directory.Exists(configPath)) list.Add(configPath);
-            if (Directory.Exists(DefaultStorageSubdir)) list.Add(DefaultStorageSubdir);
+            if (!string.IsNullOrWhiteSpace(configPath))
+            {
+                try
+                {
+                    string resolved = ResolveDirectory(configPath);
+                    if (!string.IsNullOrWhiteSpace(resolved))
+                    {
+                        string root = Path.GetPathRoot(resolved);
+                        if (!string.IsNullOrEmpty(root) && Directory.Exists(root) && Directory.Exists(resolved))
+                        {
+                            list.Add(resolved);
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            try
+            {
+                string safe = GetSafeFallbackDirectory();
+                if (Directory.Exists(safe)) list.Add(safe);
+            }
+            catch { }
 
             return list.ToList();
         }
@@ -146,7 +244,7 @@ namespace VideoTimelineApp.Services
         {
             if (string.IsNullOrWhiteSpace(newPath))
             {
-                return new { success = false, message = "Đường dẫn thư mục không được để trống!" };
+                newPath = "D:\\VideoTimelineData\\Videos";
             }
 
             newPath = newPath.Trim();
@@ -156,22 +254,25 @@ namespace VideoTimelineApp.Services
                 return new { success = false, message = "Đường dẫn chứa ký tự không hợp lệ!" };
             }
 
-            if (!Path.IsPathRooted(newPath))
-            {
-                return new { success = false, message = "Vui lòng nhập đường dẫn tuyệt đối đầy đủ (ví dụ: D:\\Videos hoặc E:\\MediaStorage)!" };
-            }
+            string resolvedNewPath = ResolveDirectory(newPath);
 
             string currentDir = GetStorageDirectory();
 
             try
             {
-                if (!Directory.Exists(newPath))
+                string root = Path.GetPathRoot(resolvedNewPath);
+                if (!string.IsNullOrEmpty(root) && !Directory.Exists(root))
                 {
-                    Directory.CreateDirectory(newPath);
+                    return new { success = false, message = "Ổ đĩa \"" + root + "\" không tồn tại trên máy tính này!" };
+                }
+
+                if (!Directory.Exists(resolvedNewPath))
+                {
+                    Directory.CreateDirectory(resolvedNewPath);
                 }
 
                 // Kiểm tra quyền ghi (write permission)
-                string testFile = Path.Combine(newPath, ".perm_test_" + Guid.NewGuid().ToString("N") + ".tmp");
+                string testFile = Path.Combine(resolvedNewPath, ".perm_test_" + Guid.NewGuid().ToString("N") + ".tmp");
                 File.WriteAllText(testFile, "test");
                 File.Delete(testFile);
             }
@@ -181,9 +282,9 @@ namespace VideoTimelineApp.Services
             }
 
             // Nếu cùng đường dẫn
-            if (string.Equals(Path.GetFullPath(currentDir), Path.GetFullPath(newPath), StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(Path.GetFullPath(currentDir), Path.GetFullPath(resolvedNewPath), StringComparison.OrdinalIgnoreCase))
             {
-                return new { success = true, newPath = newPath, movedCount = 0, message = "Thư mục không thay đổi." };
+                return new { success = true, newPath = resolvedNewPath, movedCount = 0, message = "Thư mục không thay đổi." };
             }
 
             int movedCount = 0;
@@ -195,7 +296,7 @@ namespace VideoTimelineApp.Services
                     foreach (var srcFile in files)
                     {
                         string fileName = Path.GetFileName(srcFile);
-                        string destFile = Path.Combine(newPath, fileName);
+                        string destFile = Path.Combine(resolvedNewPath, fileName);
                         if (!File.Exists(destFile))
                         {
                             File.Move(srcFile, destFile);
@@ -217,14 +318,14 @@ namespace VideoTimelineApp.Services
             {
                 settings.FallbackPaths.Add(currentDir);
             }
-            settings.StoragePath = newPath;
+            settings.StoragePath = resolvedNewPath;
             SaveSettings(settings);
 
             string msg = movedCount > 0
-                ? string.Format("Đã chuyển thư mục lưu trữ sang \"{0}\" và di chuyển {1} file video thành công!", newPath, movedCount)
-                : string.Format("Đã chuyển thư mục lưu trữ sang \"{0}\" thành công!", newPath);
+                ? string.Format("Đã chuyển thư mục lưu trữ sang \"{0}\" và di chuyển {1} file video thành công!", resolvedNewPath, movedCount)
+                : string.Format("Đã chuyển thư mục lưu trữ sang \"{0}\" thành công!", resolvedNewPath);
 
-            return new { success = true, newPath = newPath, movedCount = movedCount, message = msg };
+            return new { success = true, newPath = resolvedNewPath, movedCount = movedCount, message = msg };
         }
 
         /// <summary>
@@ -237,24 +338,32 @@ namespace VideoTimelineApp.Services
 
             string safeFileName = Path.GetFileName(storedFileName);
 
-            // 1. Kiểm tra trong thư mục cấu hình độc lập mới
+            // 1. Kiểm tra trong thư mục cấu hình chính hiện tại
             string primaryDir = GetStorageDirectory();
-            string primaryPath = Path.Combine(primaryDir, safeFileName);
-            if (File.Exists(primaryPath))
+            try
             {
-                return primaryPath;
+                string primaryPath = Path.Combine(primaryDir, safeFileName);
+                if (File.Exists(primaryPath))
+                {
+                    return primaryPath;
+                }
             }
+            catch { }
 
             // 2. Kiểm tra trong các thư mục fallback đã từng lưu
             var fallbackDirs = GetFallbackDirectories();
             foreach (var fbDir in fallbackDirs)
             {
                 if (string.Equals(fbDir, primaryDir, StringComparison.OrdinalIgnoreCase)) continue;
-                string fbPath = Path.Combine(fbDir, safeFileName);
-                if (File.Exists(fbPath))
+                try
                 {
-                    return fbPath;
+                    string fbPath = Path.Combine(fbDir, safeFileName);
+                    if (File.Exists(fbPath))
+                    {
+                        return fbPath;
+                    }
                 }
+                catch { }
             }
 
             // 3. Fallback: Kiểm tra thư mục uploads/videos cũ trong root nếu có
@@ -276,7 +385,7 @@ namespace VideoTimelineApp.Services
             }
 
             // Nếu chưa tồn tại, trả về đường dẫn mục tiêu trong thư mục lưu trữ mới
-            return primaryPath;
+            return Path.Combine(primaryDir, safeFileName);
         }
 
         /// <summary>
