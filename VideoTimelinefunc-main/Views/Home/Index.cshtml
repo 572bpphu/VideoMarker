@@ -457,6 +457,15 @@
                 });
             }
             if (storageInput) {
+                storageInput.addEventListener('input', function () {
+                    hideStorageAlert();
+                });
+                storageInput.addEventListener('blur', function () {
+                    if (!storageInput.value.trim()) {
+                        storageInput.value = 'D:\\VideoTimelineData\\Videos';
+                        hideStorageAlert();
+                    }
+                });
                 storageInput.addEventListener('keydown', function (e) {
                     if (e.key === 'Enter') {
                         e.preventDefault();
@@ -470,13 +479,38 @@
         });
 
         // ── Cấu hình thư mục lưu trữ video ──────────────────────────
+        function showStorageAlert(msg) {
+            var alertBox = document.getElementById('storage-folder-alert');
+            var alertMsg = document.getElementById('storage-folder-alert-msg');
+            var input = document.getElementById('storage-folder-input');
+            if (alertBox && alertMsg) {
+                alertMsg.textContent = msg;
+                alertBox.style.display = 'flex';
+            }
+            if (input) {
+                input.style.borderColor = '#DC2626';
+                input.focus();
+            }
+        }
+
+        function hideStorageAlert() {
+            var alertBox = document.getElementById('storage-folder-alert');
+            var input = document.getElementById('storage-folder-input');
+            if (alertBox) alertBox.style.display = 'none';
+            if (input) input.style.borderColor = '';
+        }
+
         function openChangeStorageModal() {
             var modal = document.getElementById('storage-folder-modal');
             var input = document.getElementById('storage-folder-input');
             var lbl = document.getElementById('lbl-storage-path');
             if (!modal || !input) return;
 
-            input.value = lbl ? lbl.textContent.trim() : '';
+            hideStorageAlert();
+
+            var current = lbl ? lbl.textContent.trim() : '';
+            // Nếu người dùng để trống thì tự động điền là lưu vào ổ D
+            input.value = current || 'D:\\VideoTimelineData\\Videos';
             modal.classList.add('show');
             setTimeout(function () {
                 input.focus();
@@ -487,6 +521,7 @@
         function closeChangeStorageModal() {
             var modal = document.getElementById('storage-folder-modal');
             if (modal) modal.classList.remove('show');
+            hideStorageAlert();
         }
 
         function submitChangeStoragePath() {
@@ -495,8 +530,23 @@
             var saveBtn = document.getElementById('storage-folder-save');
             var newPath = input ? input.value.trim() : '';
 
+            // Khi người dùng để trống thì tự động điền là lưu vào ổ D
             if (!newPath) {
-                window.alertModal('Đường dẫn thư mục không được để trống!', 'Cảnh báo');
+                newPath = 'D:\\VideoTimelineData\\Videos';
+                input.value = newPath;
+            }
+
+            hideStorageAlert();
+
+            // Kiểm tra tính hợp lệ cơ bản của đường dẫn
+            if (/[<>"|?*]/.test(newPath)) {
+                showStorageAlert('Đường dẫn chứa ký tự không hợp lệ (<, >, ", |, ?, *)!');
+                return;
+            }
+
+            var isRooted = /^[a-zA-Z]:[\\\/]/.test(newPath) || newPath.startsWith('\\\\');
+            if (!isRooted && !newPath.startsWith('~')) {
+                showStorageAlert('Vui lòng nhập đường dẫn tuyệt đối bắt đầu bằng ổ đĩa (ví dụ: D:\\Videos hoặc C:\\MediaStorage)!');
                 return;
             }
 
@@ -529,7 +579,8 @@
                     closeChangeStorageModal();
                     window.showToast(data.message || 'Đã cập nhật thư mục lưu trữ thành công!', true);
                 } else {
-                    window.alertModal(data.message || 'Lỗi khi cập nhật thư mục!', 'Lỗi');
+                    // Hiển thị ô cảnh báo ngay trước ô chọn đường dẫn
+                    showStorageAlert(data.message || 'Đường dẫn không hợp lệ hoặc không thể tạo thư mục!');
                 }
             })
             .catch(function (err) {
@@ -537,7 +588,7 @@
                     saveBtn.disabled = false;
                     saveBtn.textContent = 'Lưu thư mục';
                 }
-                window.alertModal('Lỗi kết nối máy chủ: ' + err.message, 'Lỗi mạng');
+                showStorageAlert('Lỗi kết nối máy chủ: ' + err.message);
             });
         }
 

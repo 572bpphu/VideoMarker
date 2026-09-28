@@ -69,6 +69,13 @@
             <div style="font-size: 0.85rem; color: var(--muted); line-height: 1.5;">
                 Đường dẫn thư mục trên máy tính hoặc ổ đĩa để lưu trữ các file video tải lên.
             </div>
+
+            <!-- Ô cảnh báo hiện trước ô chọn đường dẫn -->
+            <div id="storage-folder-alert" class="modal-alert-box" style="display:none;">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size: 0.95rem; flex-shrink: 0;"></i>
+                <span id="storage-folder-alert-msg"></span>
+            </div>
+
             <div class="field-group" style="margin-top: 4px;">
                 <label class="field-label" for="storage-folder-input">Đường dẫn thư mục mới</label>
                 <input class="field-input" id="storage-folder-input" type="text" placeholder="Ví dụ: D:\VideoTimelineData\Videos hoặc E:\MediaStorage" maxlength="500" />

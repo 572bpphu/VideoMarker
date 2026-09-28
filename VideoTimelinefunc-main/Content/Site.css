@@ -2332,6 +2332,29 @@ video {
   display: flex;
 }
 
+/* Modal Inline Alert Box */
+.modal-alert-box {
+  background: #FEF2F2;
+  border: 1.5px solid #FCA5A5;
+  color: #B91C1C;
+  border-radius: var(--rs);
+  padding: 8px 12px;
+  font-size: 0.83rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.4;
+  margin-top: 4px;
+  animation: modalAlertShake 0.3s ease;
+}
+
+@keyframes modalAlertShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
 .confirm-box {
   background: #FFFFFF;
   border: 1.5px solid #CBD5E1;

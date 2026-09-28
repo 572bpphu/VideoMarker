@@ -1,4 +1,4 @@
-﻿## Visual Studio / Build Artifacts
+## Visual Studio / Build Artifacts
 bin/
 obj/
 *.suo
@@ -18,8 +18,11 @@ nuget.exe
 uploads/videos/*
 !uploads/videos/.gitkeep
 
-## Sensitive Configuration (DO NOT COMMIT)
+## Sensitive Configuration & Local Storage Settings (DO NOT COMMIT)
 AppSettingsSecrets.config
+App_Data/storage_settings.json
+App_Data/Videos/*
+!App_Data/Videos/.gitkeep
 
 ## Temporary & Cache files
 *.log
