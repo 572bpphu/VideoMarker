@@ -134,9 +134,11 @@
     <Content Include="packages.config" />
     <Content Include="Scripts\timeline.js" />
     <Content Include="Views\Home\Index.cshtml" />
+    <Content Include="Views\Home\_LibraryPartial.cshtml" />
     <Content Include="Views\Shared\_Layout.cshtml" />
     <Content Include="Views\_ViewStart.cshtml" />
     <Content Include="Views\Video\Player.cshtml" />
+    <Content Include="Views\Video\_PlayerPartial.cshtml" />
     <Content Include="Views\Web.config" />
     <Content Include="Web.config" />
     <Content Include="Web.Debug.config">

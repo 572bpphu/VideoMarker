@@ -17,7 +17,7 @@ namespace VideoTimelineApp.Controllers
         private readonly AppDbContext _db = new AppDbContext();
 
         // GET /
-        public async Task<ActionResult> Index()
+        public async Task<ActionResult> Index(int? videoId = null)
         {
             var videos = await _db.VideoSessions
                 .Include(v => v.Segments)
@@ -25,6 +25,7 @@ namespace VideoTimelineApp.Controllers
                 .ToListAsync();
 
             ViewBag.LocalStoragePath = LocalStorageService.GetStorageDirectory();
+            ViewBag.InitialVideoId = videoId;
             return View(videos);
         }
 
@@ -67,7 +68,7 @@ namespace VideoTimelineApp.Controllers
                 await _db.SaveChangesAsync();
 
                 TempData["Success"] = string.Format("Đã lưu video \"{0}\" vào thư mục lưu trữ thành công!", session.Title);
-                return RedirectToAction("Player", "Video", new { id = session.Id });
+                return RedirectToAction("Index", "Home", new { videoId = session.Id });
             }
             catch (Exception ex)
             {
@@ -122,7 +123,7 @@ namespace VideoTimelineApp.Controllers
                 return Json(new
                 {
                     success     = true,
-                    redirectUrl = Url.Action("Player", "Video", new { id = session.Id })
+                    redirectUrl = Url.Action("Index", "Home", new { videoId = session.Id })
                 });
             }
             catch (Exception ex)
@@ -150,6 +151,35 @@ namespace VideoTimelineApp.Controllers
 
             TempData["Success"] = string.Format("Đã xoá video \"{0}\".", session.Title);
             return RedirectToAction("Index");
+        }
+
+        // POST /Home/Rename
+        [HttpPost]
+        public async Task<JsonResult> Rename(int id, string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return Json(new { success = false, message = "Tên video không được để trống!" });
+            }
+
+            var session = await _db.VideoSessions.FindAsync(id);
+            if (session == null)
+            {
+                return Json(new { success = false, message = "Không tìm thấy video trong hệ thống!" });
+            }
+
+            session.Title = title.Trim();
+            await _db.SaveChangesAsync();
+
+            return Json(new { success = true, id = session.Id, title = session.Title, message = "Đã đổi tên video thành công!" });
+        }
+
+        // POST /Home/UpdateStoragePath
+        [HttpPost]
+        public JsonResult UpdateStoragePath(string newPath, bool moveExistingFiles)
+        {
+            var result = LocalStorageService.UpdateStorageDirectory(newPath, moveExistingFiles);
+            return Json(result);
         }
 
         protected override void Dispose(bool disposing)

@@ -1,0 +1,170 @@
+<div class="player-page" id="player-container">
+    <!-- ── Trạng thái chưa chọn video ── -->
+    <div id="player-empty-state" class="player-empty-container" style="display:none;">
+        <div class="player-empty-icon"><i class="fa-solid fa-film"></i></div>
+        <div class="player-empty-title">Chưa chọn video để phân tích</div>
+        <div class="player-empty-desc">
+            Vui lòng chọn một video từ tab <strong>Thư viện video</strong> hoặc tải lên video mới để bắt đầu đánh dấu và phân tích thao tác.
+        </div>
+        <button type="button" class="btn btn-primary" onclick="appTabs.switchToLibrary()" style="display:inline-flex; align-items:center; gap:8px;">
+            <i class="fa-solid fa-arrow-left"></i> Quay lại Thư viện video
+        </button>
+    </div>
+
+    <!-- ── Khu vực Player chính ── -->
+    <div id="player-main-content">
+        <!-- ── App Layout ── -->
+        <div id="app">
+
+            <!-- VIDEO -->
+            <div id="sec-video">
+                <video id="video" controls playsinline preload="metadata">
+                    <source src="" />
+                    Trình duyệt không hỗ trợ phát video.
+                </video>
+            </div>
+
+            <!-- TIMELINE -->
+            <div id="sec-timeline" class="card">
+                <div class="tl-top">
+                    <span class="tl-label-text">Click để tua · Làn trên: Đúng · Làn dưới: Sai</span>
+                    <span class="tl-time"><span id="ct-disp">00:00</span> / <span id="dur-disp">--:--</span></span>
+                </div>
+                <div id="timeline-wrap">
+                    <div id="track-bg">
+                        <div class="tl-lane-divider"></div>
+                    </div>
+                    <div id="pending-ind"></div>
+                    <div id="playhead" style="left:0"></div>
+                </div>
+                <div id="ticks"></div>
+            </div>
+
+            <!-- CONTROLS PANEL -->
+            <div id="sec-controls" class="card">
+
+                <!-- Chọn kiểu thao tác + màu cùng hàng -->
+                <div class="ctrl-block">
+                    <div class="ctrl-label">Loại thao tác</div>
+                    <div class="type-color-row">
+                        <!-- 2 nút Đúng / Sai -->
+                        <div class="type-row">
+                            <button class="type-btn on-normal" id="type-normal" onclick="setType('normal')">Đúng</button>
+                            <button class="type-btn" id="type-incident" onclick="setType('incident')">Sai</button>
+                        </div>
+
+                        <!-- Chọn màu thao tác đúng -->
+                        <div id="block-normal-color" class="color-inline-block">
+                            <div class="color-palette-wrap">
+                                <div class="color-swatches" id="color-swatches"></div>
+                                <div class="color-palette-row">
+                                    <label class="color-custom-btn" title="Bấm để chọn mã màu tùy ý">
+                                        <input type="color" id="input-custom-color" value="#38bdf8" />
+                                        <span class="custom-color-preview" id="custom-color-preview" style="background:#38bdf8"></span>
+                                        <span class="custom-color-lbl">Màu</span>
+                                    </label>
+                                    <span id="current-color-hex" class="color-hex-tag">#38bdf8</span>
+                                </div>
+                                <div class="color-history-wrap" id="color-history-wrap">
+                                    <div class="color-history-header">
+                                        <span class="color-history-label">Gần đây:</span>
+                                        <button type="button" class="color-history-clear-btn" id="btn-clear-color-history" title="Xóa toàn bộ màu gần đây">✕</button>
+                                    </div>
+                                    <div id="color-history-swatches" class="color-history-swatches"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Selection display -->
+                <div class="ctrl-block">
+                    <div class="overlap-warn" id="overlap-warn" style="display:none">Thao tác đè lên mốc cùng loại đã có!</div>
+                </div>
+
+                <!-- Mark buttons -->
+                <div class="ctrl-block">
+                    <div class="mark-row">
+                        <button class="btn btn-start" id="btn-set-start"> Đặt điểm đầu</button>
+                        <button class="btn btn-end" id="btn-set-end"> Đặt điểm cuối</button>
+                    </div>
+                    <div class="shortcut-bar">
+                        <span><kbd>Q</kbd> / <kbd>1</kbd> Đúng</span>
+                        <span><kbd>W</kbd> / <kbd>2</kbd> Sai</span>
+                        <span><kbd>Space</kbd> Dừng/Phát</span>
+                        <span><kbd>Esc</kbd> Hủy mốc</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TOOLBAR -->
+            <div id="sec-toolbar" class="card">
+                <div class="toolbar">
+                    <button class="btn btn-save-db" id="btn-save-db">Lưu vào CSDL</button>
+                    <button class="btn btn-discard-db" id="btn-discard-db">Hủy thay đổi</button>
+                    <button class="btn btn-undo" id="btn-undo">Hoàn tác</button>
+                    <button class="btn btn-clear" id="btn-clear">Xóa tất cả</button>
+                </div>
+                <div class="db-status-wrap">
+                    <span id="saving-indicator" style="display:none; font-size:.82rem; color:var(--muted); font-weight:600; margin-right:8px;"><i class="fa-solid fa-spinner fa-spin"></i> Đang lưu…</span>
+                    <span id="db-status-badge" class="db-status-badge synced">Đã đồng bộ với CSDL</span>
+                </div>
+            </div>
+
+            <!-- STATS + SEGMENT TABLE -->
+            <div id="sec-stats">
+                <div class="stats-boxes">
+                    <div class="stat-box"><div class="sl">Tổng đoạn</div><div class="sv" id="st-count">0</div></div>
+                    <div class="stat-box"><div class="sl">Đúng</div><div class="sv" id="st-normal">0</div></div>
+                    <div class="stat-box"><div class="sl">Sai</div><div class="sv" id="st-inc">0</div></div>
+                    <div class="stat-box"><div class="sl" title="Tổng thời gian thao tác Đúng (đã trừ phần thời gian thao tác Sai lồng bên trong)">Tổng thời gian đúng</div><div class="sv" id="st-total">00:00.00</div></div>
+                    <div class="stat-box"><div class="sl" title="Tổng thời gian tất cả các thao tác Sai">Tổng thời gian sai</div><div class="sv" id="st-inc-total" style="color:var(--danger)">00:00.00</div></div>
+                </div>
+                <div class="card">
+                    <div class="table-header-row">
+                        <div class="ctrl-label">Danh sách thao tác</div>
+                        <div class="filter-tabs">
+                            <button class="tab-btn active" id="tab-filter-all" data-filter="all">Tất cả (<span id="cnt-all">0</span>)</button>
+                            <button class="tab-btn" id="tab-filter-normal" data-filter="normal">Đúng (<span id="cnt-normal">0</span>)</button>
+                            <button class="tab-btn" id="tab-filter-incident" data-filter="incident">Sai (<span id="cnt-incident">0</span>)</button>
+                        </div>
+                    </div>
+                    <div class="seg-table-wrap">
+                        <table class="seg-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 45px; text-align: center;">#</th>
+                                    <th style="width: 50px;">Loại</th>
+                                    <th>Tên thao tác</th>
+                                    <th style="width: 105px;">Bắt đầu (s)</th>
+                                    <th style="width: 105px;">Kết thúc (s)</th>
+                                    <th style="width: 90px; text-align: right;">Độ dài</th>
+                                    <th style="width: 110px; text-align: center;">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="seg-table-body">
+                                <!-- Dynamic JS render -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- #app -->
+    </div>
+</div>
+
+<!-- Edit label modal -->
+<div id="edit-modal">
+    <div class="modal-box">
+        <div class="modal-title">Chỉnh sửa tên thao tác</div>
+        <input class="field-input" id="edit-input" type="text" placeholder="Nhập nhãn mới" maxlength="60" />
+        <div class="modal-row">
+            <button class="modal-btn modal-save" id="modal-save">Lưu</button>
+            <button class="modal-btn modal-cancel" id="modal-cancel">Huỷ</button>
+        </div>
+    </div>
+</div>
+
+<div id="tooltip"></div>
+<div id="seg-annotation-popup" class="seg-annotation-popup"></div>

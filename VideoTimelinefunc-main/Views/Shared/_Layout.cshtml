@@ -5,30 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
     <title>@ViewBag.Title – 🎬 Video Timeline Marker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <!-- DevExtreme Light Theme -->
+    <link rel="stylesheet" href="https://cdn3.devexpress.com/jslib/23.2.5/css/dx.light.css" />
     <link rel="stylesheet" href="~/Content/Site.css?v=@DateTime.Now.Ticks" />
 </head>
 <body>
     <nav class="app-nav">
         <div class="nav-inner">
-            <a href="@Url.Action("Index","Home")" class="nav-brand"> Video Timeline Marker</a>
-            <div class="nav-links">
-                <a href="@Url.Action("Index","Home")" class="nav-link"> Thư viện video</a>
+            <div class="header-tabs-container">
+                @RenderSection("HeaderTabs", required: false)
             </div>
         </div>
     </nav>
 
     @if (TempData["Success"] != null)
     {
-        <div class="flash flash-ok"> @TempData["Success"]</div>
+        <div class="flash flash-ok">@TempData["Success"]</div>
     }
     @if (TempData["Error"] != null)
     {
-        <div class="flash flash-err"> @TempData["Error"]</div>
+        <div class="flash flash-err">@TempData["Error"]</div>
     }
 
     <main class="main-content">
         @RenderBody()
     </main>
+
+    <!-- Custom Global Confirmation Modal & Toast -->
+    <div id="confirm-modal">
+        <div class="modal-box confirm-box">
+            <div class="modal-title confirm-title" id="confirm-modal-title">Yêu cầu xác nhận</div>
+            <div class="confirm-modal-msg" id="confirm-modal-msg"></div>
+            <div class="modal-row">
+                <button class="modal-btn modal-confirm-ok" id="confirm-modal-ok">Xác nhận</button>
+                <button class="modal-btn modal-cancel" id="confirm-modal-cancel">Huỷ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Global Rename Video Modal -->
+    <div id="rename-modal">
+        <div class="modal-box rename-box">
+            <div class="modal-title rename-title">
+                <i class="fa-solid fa-pen-to-square" style="color:var(--accent); margin-right:6px;"></i> Đổi tên video
+            </div>
+            <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 2px;">
+                Nhập tên mới cho video:
+            </div>
+            <input class="field-input" id="rename-video-input" type="text" placeholder="Nhập tên video..." maxlength="255" />
+            <div class="modal-row">
+                <button class="modal-btn modal-save" id="rename-video-save">Lưu thay đổi</button>
+                <button class="modal-btn modal-cancel" id="rename-video-cancel">Huỷ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Global Storage Folder Modal -->
+    <div id="storage-folder-modal">
+        <div class="modal-box" style="max-width: 520px;">
+            <div class="modal-title">
+                <i class="fa-solid fa-folder-gear" style="color:var(--accent); margin-right:6px;"></i> Cấu hình thư mục lưu trữ video
+            </div>
+            <div style="font-size: 0.85rem; color: var(--muted); line-height: 1.5;">
+                Đường dẫn thư mục trên máy tính hoặc ổ đĩa để lưu trữ các file video tải lên.
+            </div>
+            <div class="field-group" style="margin-top: 4px;">
+                <label class="field-label" for="storage-folder-input">Đường dẫn thư mục mới</label>
+                <input class="field-input" id="storage-folder-input" type="text" placeholder="Ví dụ: D:\VideoTimelineData\Videos hoặc E:\MediaStorage" maxlength="500" />
+            </div>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.84rem; cursor: pointer; color: var(--text); user-select: none;">
+                <input type="checkbox" id="storage-folder-move-files" checked style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent);" />
+                <span>Tự động di chuyển các file video hiện có sang thư mục mới</span>
+            </label>
+            <div class="modal-row" style="margin-top: 6px;">
+                <button class="modal-btn modal-save" id="storage-folder-save">Lưu thư mục</button>
+                <button class="modal-btn modal-cancel" id="storage-folder-cancel">Huỷ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <!-- Core Scripts: jQuery & DevExtreme -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn3.devexpress.com/jslib/23.2.5/js/dx.all.js"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -44,6 +104,80 @@
                 }, 3500);
             });
         });
+
+        // ── Custom Confirm Modal & Toast Helpers (Global) ───────────────────
+        window.confirmAsync = function (message, title, okText, cancelText, isDanger) {
+            title = title || 'Yêu cầu xác nhận';
+            okText = okText || 'Xác nhận';
+            var showCancel = cancelText !== false;
+            cancelText = cancelText || 'Huỷ';
+
+            return new Promise(function (resolve) {
+                var modal = document.getElementById('confirm-modal');
+                var titleEl = document.getElementById('confirm-modal-title');
+                var msgEl = document.getElementById('confirm-modal-msg');
+                var okBtn = document.getElementById('confirm-modal-ok');
+                var cancelBtn = document.getElementById('confirm-modal-cancel');
+
+                if (!modal || !titleEl || !msgEl || !okBtn || !cancelBtn) {
+                    resolve(window.confirm(message));
+                    return;
+                }
+
+                titleEl.textContent = title;
+                msgEl.textContent = message;
+                okBtn.textContent = okText;
+                okBtn.className = 'modal-btn ' + (isDanger ? 'modal-confirm-ok' : 'modal-save');
+
+                cancelBtn.textContent = cancelText;
+                cancelBtn.style.display = showCancel ? 'inline-block' : 'none';
+
+                function cleanup(val) {
+                    modal.classList.remove('show');
+                    okBtn.removeEventListener('click', onOk);
+                    cancelBtn.removeEventListener('click', onCancel);
+                    modal.removeEventListener('click', onBackdrop);
+                    document.removeEventListener('keydown', onKey);
+                    resolve(val);
+                }
+
+                function onOk() { cleanup(true); }
+                function onCancel() { cleanup(false); }
+                function onBackdrop(e) { if (e.target === modal) cleanup(false); }
+                function onKey(e) {
+                    if (!modal.classList.contains('show')) return;
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cleanup(false);
+                    } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        cleanup(true);
+                    }
+                }
+
+                okBtn.addEventListener('click', onOk);
+                cancelBtn.addEventListener('click', onCancel);
+                modal.addEventListener('click', onBackdrop);
+                document.addEventListener('keydown', onKey);
+
+                modal.classList.add('show');
+                okBtn.focus();
+            });
+        };
+
+        window.alertModal = function (message, title) {
+            return window.confirmAsync(message, title || 'Thông báo', 'Đóng', false, false);
+        };
+
+        var globalToastTimer;
+        window.showToast = function (msg, ok) {
+            var el = document.getElementById('toast');
+            if (!el) return;
+            el.textContent = msg;
+            el.className = 'show' + (ok ? ' ok' : '');
+            clearTimeout(globalToastTimer);
+            globalToastTimer = setTimeout(function () { el.className = ''; }, 2700);
+        };
     </script>
     @RenderSection("Scripts", required: false)
 </body>

@@ -123,7 +123,12 @@
 
     var toastTimer;
     function showToast(msg, ok) {
-        var el = G('toast');
+        if (window.showToast) {
+            window.showToast(msg, ok);
+            return;
+        }
+        var el = G('toast') || document.getElementById('toast');
+        if (!el) return;
         el.textContent = msg;
         el.className = 'show' + (ok ? ' ok' : '');
         clearTimeout(toastTimer);
@@ -185,7 +190,7 @@
         return apiUpdateSegment(id, { label: label });
     }
     function apiUpdateDuration(dur) {
-        return apiCall('PUT', '/api/segments/video/' + VIDEO_ID + '/duration', { duration: dur });
+        return apiCall('PUT', '/api/segments/video/' + (VIDEO_ID || window.VIDEO_ID) + '/duration', { duration: dur });
     }
     function apiSaveBatch(videoId, segs) {
         var payload = {
@@ -391,12 +396,41 @@
     }
 
 
-    // ── Bootstrap from server-seeded data ────────────────────────────
-    function init() {
-        initialSegments = (window.INIT_SEGMENTS || []).map(function (s) { return Object.assign({}, s); });
-        segments = initialSegments.map(function (s) { return Object.assign({}, s); });
+    // ── Dynamic Video Session Loader ──────────────────────────────────
+    function loadVideoSession(sessionData) {
+        if (!sessionData || !sessionData.id) return;
+        VIDEO_ID = sessionData.id;
+        window.VIDEO_ID = sessionData.id;
+        duration = sessionData.duration || 0;
+        window.VIDEO_DURATION = duration;
+        DRAFT_STORAGE_KEY = 'video_timeline_draft_' + VIDEO_ID;
 
-        initColorPalette();
+        var titleEl = G('player-video-title');
+        if (titleEl) titleEl.textContent = '/ ' + (sessionData.title || '');
+
+        var emptyEl = G('player-empty-state');
+        var mainEl = G('player-main-content');
+        if (emptyEl) emptyEl.style.display = 'none';
+        if (mainEl) mainEl.style.display = 'block';
+
+        if (videoEl && sessionData.videoUrl) {
+            videoEl.pause();
+            var srcEl = videoEl.querySelector('source');
+            if (srcEl) {
+                srcEl.src = sessionData.videoUrl;
+            } else {
+                videoEl.src = sessionData.videoUrl;
+            }
+            videoEl.load();
+        }
+
+        pendingStart = null;
+        pendingEnd = null;
+        if (overlapW) overlapW.style.display = 'none';
+
+        initialSegments = (sessionData.segments || []).map(function (s) { return Object.assign({}, s); });
+        segments = initialSegments.map(function (s) { return Object.assign({}, s); });
+        setDirty(false);
 
         // Kiểm tra xem có bản nháp chưa lưu trước đó trong LocalStorage không
         try {
@@ -426,14 +460,18 @@
             }
         } catch (e) { }
 
-        if (!duration && videoEl && isFinite(videoEl.duration) && videoEl.duration > 0) {
-            duration = videoEl.duration;
-        }
-
         if (duration > 0) {
-            durDisp.textContent = fmtDurationMs(duration);
+            if (durDisp) durDisp.textContent = fmtDurationMs(duration);
             buildTicks();
         }
+        updateDirtyUI();
+        render();
+        updateSel();
+    }
+
+    // ── Bootstrap from server-seeded data ────────────────────────────
+    function init() {
+        initColorPalette();
 
         // Setup filter tabs
         ['all', 'normal', 'incident'].forEach(function (f) {
@@ -448,9 +486,20 @@
             }
         });
 
-        updateDirtyUI();
-        render();
-        updateSel();
+        if (window.VIDEO_ID) {
+            loadVideoSession({
+                id: window.VIDEO_ID,
+                title: window.VIDEO_TITLE,
+                duration: window.VIDEO_DURATION,
+                videoUrl: window.VIDEO_URL,
+                segments: window.INIT_SEGMENTS || []
+            });
+        } else {
+            var emptyEl = G('player-empty-state');
+            var mainEl = G('player-main-content');
+            if (emptyEl) emptyEl.style.display = 'flex';
+            if (mainEl) mainEl.style.display = 'none';
+        }
     }
 
     // ── Build tick marks ─────────────────────────────────────────────
@@ -992,17 +1041,21 @@
     });
 
     // ── Custom Confirm Modal ──────────────────────────────────────────
-    function confirmAsync(message, title, okText, cancelText) {
+    function confirmAsync(message, title, okText, cancelText, isDanger) {
+        if (window.confirmAsync) {
+            return window.confirmAsync(message, title, okText, cancelText, isDanger !== undefined ? isDanger : true);
+        }
+
         title = title || 'Yêu cầu xác nhận';
         okText = okText || 'Xác nhận xóa';
         cancelText = cancelText || 'Hủy';
 
         return new Promise(function (resolve) {
-            var modal = G('confirm-modal');
-            var titleEl = G('confirm-modal-title');
-            var msgEl = G('confirm-modal-msg');
-            var okBtn = G('confirm-modal-ok');
-            var cancelBtn = G('confirm-modal-cancel');
+            var modal = G('confirm-modal') || document.getElementById('confirm-modal');
+            var titleEl = G('confirm-modal-title') || document.getElementById('confirm-modal-title');
+            var msgEl = G('confirm-modal-msg') || document.getElementById('confirm-modal-msg');
+            var okBtn = G('confirm-modal-ok') || document.getElementById('confirm-modal-ok');
+            var cancelBtn = G('confirm-modal-cancel') || document.getElementById('confirm-modal-cancel');
 
             if (!modal || !titleEl || !msgEl || !okBtn || !cancelBtn) {
                 resolve(window.confirm(message));
@@ -1012,6 +1065,7 @@
             titleEl.textContent = title;
             msgEl.textContent = message;
             okBtn.textContent = okText;
+            okBtn.className = 'modal-btn ' + (isDanger === false ? 'modal-save' : 'modal-confirm-ok');
             cancelBtn.textContent = cancelText;
 
             function cleanup(val) {
@@ -1220,7 +1274,8 @@
             'Bạn có các thay đổi chưa được lưu vào cơ sở dữ liệu. Bạn có chắc chắn muốn rời khỏi trang không?',
             'Xác nhận rời khỏi trang',
             'Rời khỏi trang',
-            'Giữ lại'
+            'Giữ lại',
+            false
         ).then(function (ok) {
             if (ok) {
                 isDirty = false;
@@ -1240,6 +1295,10 @@
 
     // ── Keyboard shortcuts ────────────────────────────────────────────
     document.addEventListener('keydown', function (e) {
+        // Chỉ hoạt động khi Tab Player đang active
+        if (window.TIMELINE_ACTIVE === false) return;
+        if (window.appTabs && !window.appTabs.isPlayerActive()) return;
+
         var d = getDuration();
         if (!d) return;
         if (['INPUT', 'TEXTAREA'].indexOf(document.activeElement.tagName) !== -1) return;
@@ -1344,6 +1403,14 @@
             tblWrap.scrollLeft = scrollLeft - walk;
         });
     }
+
+    // ── Export public API to window ──────────────────────────────────
+    window.loadVideoSession = loadVideoSession;
+    window.isTimelineDirty = function () { return isDirty; };
+    window.redrawTimeline = function () {
+        if (duration > 0) buildTicks();
+        render();
+    };
 
     // ── Start ─────────────────────────────────────────────────────────
     init();
