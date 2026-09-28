@@ -123,7 +123,12 @@
 
     var toastTimer;
     function showToast(msg, ok) {
-        var el = G('toast');
+        if (window.showToast) {
+            window.showToast(msg, ok);
+            return;
+        }
+        var el = G('toast') || document.getElementById('toast');
+        if (!el) return;
         el.textContent = msg;
         el.className = 'show' + (ok ? ' ok' : '');
         clearTimeout(toastTimer);
@@ -1036,17 +1041,21 @@
     });
 
     // ── Custom Confirm Modal ──────────────────────────────────────────
-    function confirmAsync(message, title, okText, cancelText) {
+    function confirmAsync(message, title, okText, cancelText, isDanger) {
+        if (window.confirmAsync) {
+            return window.confirmAsync(message, title, okText, cancelText, isDanger !== undefined ? isDanger : true);
+        }
+
         title = title || 'Yêu cầu xác nhận';
         okText = okText || 'Xác nhận xóa';
         cancelText = cancelText || 'Hủy';
 
         return new Promise(function (resolve) {
-            var modal = G('confirm-modal');
-            var titleEl = G('confirm-modal-title');
-            var msgEl = G('confirm-modal-msg');
-            var okBtn = G('confirm-modal-ok');
-            var cancelBtn = G('confirm-modal-cancel');
+            var modal = G('confirm-modal') || document.getElementById('confirm-modal');
+            var titleEl = G('confirm-modal-title') || document.getElementById('confirm-modal-title');
+            var msgEl = G('confirm-modal-msg') || document.getElementById('confirm-modal-msg');
+            var okBtn = G('confirm-modal-ok') || document.getElementById('confirm-modal-ok');
+            var cancelBtn = G('confirm-modal-cancel') || document.getElementById('confirm-modal-cancel');
 
             if (!modal || !titleEl || !msgEl || !okBtn || !cancelBtn) {
                 resolve(window.confirm(message));
@@ -1056,6 +1065,7 @@
             titleEl.textContent = title;
             msgEl.textContent = message;
             okBtn.textContent = okText;
+            okBtn.className = 'modal-btn ' + (isDanger === false ? 'modal-save' : 'modal-confirm-ok');
             cancelBtn.textContent = cancelText;
 
             function cleanup(val) {
@@ -1264,7 +1274,8 @@
             'Bạn có các thay đổi chưa được lưu vào cơ sở dữ liệu. Bạn có chắc chắn muốn rời khỏi trang không?',
             'Xác nhận rời khỏi trang',
             'Rời khỏi trang',
-            'Giữ lại'
+            'Giữ lại',
+            false
         ).then(function (ok) {
             if (ok) {
                 isDirty = false;

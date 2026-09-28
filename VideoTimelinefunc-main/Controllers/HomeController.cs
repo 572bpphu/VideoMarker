@@ -153,6 +153,35 @@ namespace VideoTimelineApp.Controllers
             return RedirectToAction("Index");
         }
 
+        // POST /Home/Rename
+        [HttpPost]
+        public async Task<JsonResult> Rename(int id, string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return Json(new { success = false, message = "Tên video không được để trống!" });
+            }
+
+            var session = await _db.VideoSessions.FindAsync(id);
+            if (session == null)
+            {
+                return Json(new { success = false, message = "Không tìm thấy video trong hệ thống!" });
+            }
+
+            session.Title = title.Trim();
+            await _db.SaveChangesAsync();
+
+            return Json(new { success = true, id = session.Id, title = session.Title, message = "Đã đổi tên video thành công!" });
+        }
+
+        // POST /Home/UpdateStoragePath
+        [HttpPost]
+        public JsonResult UpdateStoragePath(string newPath, bool moveExistingFiles)
+        {
+            var result = LocalStorageService.UpdateStorageDirectory(newPath, moveExistingFiles);
+            return Json(result);
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing) _db.Dispose();

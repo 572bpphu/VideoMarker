@@ -8,9 +8,10 @@
         <section class="upload-card card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
                 <h2 class="section-title" style="margin-bottom:0">Upload video mới</h2>
-                <span style="font-size:0.75rem; color:#10b981; background:rgba(16,185,129,0.12); padding:5px 12px; border-radius:12px; font-weight:600;" title="Thư mục lưu trữ media">
-                    <i class="fa-solid fa-folder-open" style="margin-right:3px;"></i> Lưu cục bộ: @ViewBag.LocalStoragePath
-                </span>
+                <button type="button" class="storage-path-badge-btn" onclick="openChangeStorageModal()" title="Bấm để thay đổi thư mục lưu trữ video cục bộ">
+                    Lưu cục bộ: <strong id="lbl-storage-path">@ViewBag.LocalStoragePath</strong>
+                    <i class="fa-solid fa-pen" style="font-size:0.68rem; margin-left:4px; opacity:0.8;"></i>
+                </button>
             </div>
             @using (Html.BeginForm("Upload", "Home", FormMethod.Post,
                         new { enctype = "multipart/form-data", id = "upload-form" }))
@@ -84,12 +85,6 @@
                             <option value="size">Dung lượng</option>
                         </select>
                     </div>
-                    <div class="lib-toolbar-right">
-                        <div class="view-btn-group">
-                            <button type="button" class="view-btn active" id="btn-view-list" onclick="setLibraryViewMode('list')" title="Hiển thị dạng Danh sách compact (☷)">☷</button>
-                            <button type="button" class="view-btn" id="btn-view-grid" onclick="setLibraryViewMode('grid')" title="Hiển thị dạng Lưới card (▦)">▦</button>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="video-list-container" id="video-list-container">
@@ -109,19 +104,20 @@
                         {
                             var segCount = v.Segments.Count;
                             <div class="video-list-row"
+                                 id="video-row-@v.Id"
                                  data-id="@v.Id"
                                  data-stream-url="@Url.Action("Stream", "Video", new { id = v.Id })"
                                  data-title="@v.Title.ToLower()"
+                                 data-raw-title="@v.Title"
                                  data-segments="@segCount"
                                  data-date="@v.UploadedAt.Ticks"
                                  data-size="@v.FileSize"
-                                 data-duration="@v.Duration"
-                                 onclick="selectVideoRow(this, event)">
-                                <div class="vl-col-thumb" title="Mở timeline: @v.Title" onclick="appTabs.openVideo(@v.Id, '@v.Title.Replace("'", "\\\'")'); event.stopPropagation();">
+                                 data-duration="@v.Duration">
+                                <div class="vl-col-thumb" title="Mở timeline: @v.Title" onclick="appTabs.openVideo(@v.Id, this.closest('.video-list-row').getAttribute('data-raw-title')); event.stopPropagation();">
                                     <span class="thumb-play">▶</span>
                                 </div>
-                                <div class="vl-col-title" onclick="appTabs.openVideo(@v.Id, '@v.Title.Replace("'", "\\\'")'); event.stopPropagation();" style="cursor:pointer">
-                                    <span class="vl-title-text" title="@v.OriginalFileName">@v.Title</span>
+                                <div class="vl-col-title" onclick="appTabs.openVideo(@v.Id, this.closest('.video-list-row').getAttribute('data-raw-title')); event.stopPropagation();" style="cursor:pointer">
+                                    <span class="vl-title-text" id="vl-title-@v.Id" title="@v.OriginalFileName">@v.Title</span>
                                 </div>
                                 <div class="vl-col-meta meta-bold vl-col-duration">
                                     @(v.Duration > 0 ? FormatDuration(v.Duration) : "--:--")
@@ -138,18 +134,18 @@
                                     @v.UploadedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
                                 </div>
                                 <div class="vl-col-actions">
-                                    <a href="@Url.Action("Player", "Video", new { id = v.Id })" class="btn-open-sm" onclick="appTabs.openVideo(@v.Id, '@v.Title.Replace("'", "\\\'")'); return false;">Mở</a>
+                                    <a href="@Url.Action("Player", "Video", new { id = v.Id })" class="btn-open-sm" onclick="appTabs.openVideo(@v.Id, this.closest('.video-list-row').getAttribute('data-raw-title')); return false;">Mở</a>
                                     <button type="button" class="btn-dots-menu" onclick="toggleRowMenu(this, event)" title="Tùy chọn khác">⋮</button>
                                     <div class="vl-dropdown">
-                                        <a href="@Url.Action("Player", "Video", new { id = v.Id })" class="vl-dropdown-item" onclick="appTabs.openVideo(@v.Id, '@v.Title.Replace("'", "\\\'")'); return false;">
-                                            ▶ Mở Timeline
-                                        </a>
+                                        <button type="button" class="vl-dropdown-item" onclick="openRenameVideoModal(@v.Id)">
+                                            Đổi tên video  
+                                        </button>
                                         @using (Html.BeginForm("Delete", "Home", new { id = v.Id }, FormMethod.Post, new { id = "del-form-" + v.Id, style = "display:none" }))
                                         {
                                             @Html.AntiForgeryToken()
                                         }
-                                        <button type="button" class="vl-dropdown-item danger-item" onclick="confirmDeleteVideo(@v.Id, '@v.Title.Replace("'", "\\\'")')">
-                                            🗑 Xóa video
+                                        <button type="button" class="vl-dropdown-item danger-item" onclick="confirmDeleteVideo(@v.Id, this.closest('.video-list-row').getAttribute('data-raw-title'))">
+                                            Xóa video
                                         </button>
                                     </div>
                                 </div>
