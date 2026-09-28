@@ -1,448 +1,400 @@
 @model IEnumerable<VideoTimelineApp.Models.VideoSession>
 @{
-    ViewBag.Title = "Thư viện Video";
+    ViewBag.Title = "Phân tích Thao tác Video";
+    int initialVideoId = ViewBag.InitialVideoId != null ? (int)ViewBag.InitialVideoId : 0;
 }
 
-<div class="page-home">
+@section HeaderTabs {
+    <div id="main-tabs"></div>
+}
 
-    <!-- ── CỘT TRÁI: Upload video ── -->
-    <div class="home-col-left">
-        <!-- ── Upload Card ── -->
-        <section class="upload-card card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
-                <h2 class="section-title" style="margin-bottom:0">Upload video mới</h2>
-                <span style="font-size:0.75rem; color:#10b981; background:rgba(16,185,129,0.12); padding:5px 12px; border-radius:12px; font-weight:600;" title="Thư mục lưu trữ media">
-                    <i class="fa-solid fa-folder-open" style="margin-right:3px;"></i> Lưu cục bộ: @ViewBag.LocalStoragePath
-                </span>
-            </div>
-            @using (Html.BeginForm("Upload", "Home", FormMethod.Post,
-                        new { enctype = "multipart/form-data", id = "upload-form" }))
-            {
-                @Html.AntiForgeryToken()
-                <div class="upload-fields">
-                    <div class="field-group">
-                        <label class="field-label" for="title">Tên video</label>
-                        <input class="field-input" type="text" id="title" name="title"
-                               placeholder="Để trống sẽ dùng tên file" maxlength="255" />
-                    </div>
-                    <div class="field-group">
-                        <label class="field-label" for="file">Chọn file video</label>
-                        <div id="drop-zone" class="drop-zone">
-                            <span class="drop-icon">▶</span>
-                            <p>Kéo thả hoặc <span class="drop-link" onclick="document.getElementById('file').click()">bấm chọn file</span></p>
-                            <p class="drop-hint">MP4 · MOV · MKV · AVI · WEBM – tối đa 500 MB</p>
-                            <p class="drop-chosen" id="chosen-name" style="display:none"></p>
-                            <input type="file" id="file" name="file" accept="video/*" style="display:none"
-                                   onchange="onFileChosen(this)" />
-                        </div>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-upload" id="upload-btn">
-                    Upload & Mở Timeline
-                </button>
-            }
-            <div class="upload-progress" id="upload-progress" style="display:none">
-                <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-                <p class="progress-text">Đang upload…</p>
-            </div>
-        </section>
+<div class="app-tabpanel-container">
+    <!-- Tab 1: Phân tích Timeline (Player) -->
+    <div id="tab-player-content">
+        @Html.Partial("~/Views/Video/_PlayerPartial.cshtml")
     </div>
 
-    <!-- ── CỘT PHẢI: Thư viện video ── -->
-    <div class="home-col-right">
-        <!-- ── Video Library ── -->
-        <section class="video-library-section card">
-            <div class="lib-header-row">
-                <div class="lib-title-wrap">
-                    <h2 class="section-title" style="margin-bottom:0">Thư viện video (@Model.Count())</h2>
-                </div>
-            </div>
-
-            @if (!Model.Any())
-            {
-                <div class="empty-state">
-                    <span>▶</span>
-                    <p>Chưa có video nào. Hãy upload video đầu tiên!</p>
-                </div>
-            }
-            else
-            {
-                <div class="lib-toolbar">
-                    <div class="lib-toolbar-left">
-                        <div class="lib-search-box">
-                            <span class="lib-search-icon"><i class="fa-solid fa-magnifying-glass"></i></span>
-                            <input type="text" id="lib-search-input" class="lib-search-input" placeholder="Tìm video..." oninput="onLibrarySearchOrFilter()" />
-                        </div>
-                        <select id="lib-filter-select" class="lib-select" onchange="onLibrarySearchOrFilter()">
-                            <option value="all">Tất cả</option>
-                            <option value="has-segments">Có mốc đánh dấu</option>
-                            <option value="no-segments">Chưa có mốc</option>
-                        </select>
-                        <select id="lib-sort-select" class="lib-select" onchange="onLibrarySearchOrFilter()">
-                            <option value="newest">Mới nhất</option>
-                            <option value="oldest">Cũ nhất</option>
-                            <option value="name-asc">Tên A-Z</option>
-                            <option value="name-desc">Tên Z-A</option>
-                            <option value="duration">Thời lượng</option>
-                            <option value="size">Dung lượng</option>
-                        </select>
-                    </div>
-                    <div class="lib-toolbar-right">
-                        <div class="view-btn-group">
-                            <button type="button" class="view-btn active" id="btn-view-list" onclick="setLibraryViewMode('list')" title="Hiển thị dạng Danh sách compact (☷)">☷</button>
-                            <button type="button" class="view-btn" id="btn-view-grid" onclick="setLibraryViewMode('grid')" title="Hiển thị dạng Lưới card (▦)">▦</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="video-list-container" id="video-list-container">
-                    <!-- Header row for List mode -->
-                    <div class="video-list-header">
-                        <div></div>
-                        <div>Tên video</div>
-                        <div>Thời lượng</div>
-                        <div class="vl-col-size-header">Size</div>
-                        <div>Đoạn</div>
-                        <div class="vl-col-date-header">Ngày upload</div>
-                        <div style="text-align:right">Hành động</div>
-                    </div>
-
-                    <div id="video-list-rows">
-                        @foreach (var v in Model)
-                        {
-                            var segCount = v.Segments.Count;
-                            <div class="video-list-row"
-                                 data-id="@v.Id"
-                                 data-stream-url="@Url.Action("Stream", "Video", new { id = v.Id })"
-                                 data-title="@v.Title.ToLower()"
-                                 data-segments="@segCount"
-                                 data-date="@v.UploadedAt.Ticks"
-                                 data-size="@v.FileSize"
-                                 data-duration="@v.Duration"
-                                 onclick="selectVideoRow(this, event)">
-                                <div class="vl-col-thumb" title="Mở timeline: @v.Title">
-                                    <span class="thumb-play">▶</span>
-                                </div>
-                                <div class="vl-col-title">
-                                    <span class="vl-title-text" title="@v.OriginalFileName">@v.Title</span>
-                                </div>
-                                <div class="vl-col-meta meta-bold vl-col-duration">
-                                    @(v.Duration > 0 ? FormatDuration(v.Duration) : "--:--")
-                                </div>
-                                <div class="vl-col-meta vl-col-size">
-                                    @FormatSize(v.FileSize)
-                                </div>
-                                <div class="vl-col-meta vl-col-segments">
-                                    <span class="vl-badge-count @(segCount > 0 ? "has-segments" : "")">
-                                        @segCount đoạn
-                                    </span>
-                                </div>
-                                <div class="vl-col-meta vl-col-date">
-                                    @v.UploadedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
-                                </div>
-                                <div class="vl-col-actions">
-                                    <a href="@Url.Action("Player", "Video", new { id = v.Id })" class="btn-open-sm">Mở</a>
-                                    <button type="button" class="btn-dots-menu" onclick="toggleRowMenu(this, event)" title="Tùy chọn khác">⋮</button>
-                                    <div class="vl-dropdown">
-                                        <a href="@Url.Action("Player", "Video", new { id = v.Id })" class="vl-dropdown-item">
-                                            ▶ Mở Timeline
-                                        </a>
-                                        @using (Html.BeginForm("Delete", "Home", new { id = v.Id }, FormMethod.Post, new { id = "del-form-" + v.Id, style = "display:none" }))
-                                        {
-                                            @Html.AntiForgeryToken()
-                                        }
-                                        <button type="button" class="vl-dropdown-item danger-item" onclick="confirmDeleteVideo(@v.Id, '@v.Title.Replace("'", "\\'")')">
-                                            🗑 Xóa video
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                </div>
-                <div id="no-results-msg" class="empty-state" style="display:none; padding: 32px 16px;">
-                    <p style="font-size: 0.9rem; color: var(--muted);">Không tìm thấy video nào phù hợp với điều kiện lọc.</p>
-                </div>
-            }
-        </section>
+    <!-- Tab 2: Thư viện Video (Library) -->
+    <div id="tab-library-content" style="display:none;">
+        @Html.Partial("_LibraryPartial", Model)
     </div>
-
 </div>
 
-@functions {
-    string FormatDuration(double sec)
-    {
-        if (sec <= 0) return "--:--";
-        int h = (int)(sec / 3600);
-        int m = (int)((sec % 3600) / 60);
-        int s = (int)(sec % 60);
-        return h > 0
-            ? string.Format("{0}:{1:D2}:{2:D2}", h, m, s)
-            : string.Format("{0:D2}:{1:D2}", m, s);
-    }
-    string FormatSize(long bytes)
-    {
-        if (bytes >= 1073741824) return string.Format("{0:F1} GB", bytes / 1073741824.0);
-        if (bytes >= 1048576)    return string.Format("{0:F1} MB", bytes / 1048576.0);
-        if (bytes >= 1024)       return string.Format("{0:F0} KB", bytes / 1024.0);
-        return bytes + " B";
-    }
-}
-
 @section Scripts {
-<script>
-function onFileChosen(input) {
-    if (!input.files.length) return;
-    var name = input.files[0].name;
-    document.getElementById('chosen-name').textContent = '📎 ' + name;
-    document.getElementById('chosen-name').style.display = 'block';
-    if (!document.getElementById('title').value)
-        document.getElementById('title').value = name.replace(/\.[^.]+$/, '');
-}
+    <script>
+        // ── DevExtreme Tabs & Application State ──────────────────────
+        window.CURRENT_VIDEO_ID = @initialVideoId;
+        window.TIMELINE_ACTIVE = true;
 
-// Drag & drop on upload zone
-var dz = document.getElementById('drop-zone');
-dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('dz-over'); });
-dz.addEventListener('dragleave', function() { dz.classList.remove('dz-over'); });
-dz.addEventListener('drop', function(e) {
-    e.preventDefault(); dz.classList.remove('dz-over');
-    var fi = document.getElementById('file');
-    fi.files = e.dataTransfer.files;
-    onFileChosen(fi);
-});
+        var tabsInstance = null;
 
-// Upload video trực tiếp vào thư mục lưu trữ cục bộ với thanh tiến trình
-document.getElementById('upload-form').addEventListener('submit', function(e) {
-    var fi = document.getElementById('file');
-    if (!fi.files || !fi.files.length) return;
-
-    e.preventDefault();
-    var file = fi.files[0];
-    var title = document.getElementById('title').value;
-
-    var btn   = document.getElementById('upload-btn');
-    var prog  = document.getElementById('upload-progress');
-    var fill  = document.getElementById('progress-fill');
-    var ptext = document.querySelector('.progress-text');
-
-    btn.disabled = true;
-    prog.style.display = 'block';
-    fill.style.width = '2%';
-    ptext.textContent = 'Đang chuẩn bị lưu video...';
-
-    var formData = new FormData();
-    formData.append('file', file);
-    formData.append('title', title);
-
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '@Url.Action("UploadAjax", "Home")', true);
-
-    xhr.upload.onprogress = function(pe) {
-        if (pe.lengthComputable) {
-            var pct = Math.round((pe.loaded / pe.total) * 95);
-            fill.style.width = pct + '%';
-            ptext.textContent = 'Đang ghi video vào máy: ' + pct + '%...';
-        }
-    };
-
-    xhr.onload = function() {
-        if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-                var res = JSON.parse(xhr.responseText);
-                if (res.success && res.redirectUrl) {
-                    fill.style.width = '100%';
-                    ptext.textContent = 'Đã lưu video thành công! Đang chuyển hướng...';
-                    window.location.href = res.redirectUrl;
-                } else {
-                    throw new Error(res.message || 'Lỗi khi lưu video!');
-                }
-            } catch (err) {
-                alert('Lỗi: ' + err.message);
-                btn.disabled = false;
-                prog.style.display = 'none';
+        var tabItems = [
+            {
+                id: "player",
+                text: "Phân tích Timeline",
+                icon: "video"
+            },
+            {
+                id: "library",
+                text: "Thư viện video",
+                icon: "folder",
+                badge: "@Model.Count()"
             }
-        } else {
-            alert('Lỗi máy chủ HTTP ' + xhr.status);
-            btn.disabled = false;
-            prog.style.display = 'none';
+        ];
+
+        function switchTab(idx) {
+            if (!tabsInstance) return;
+            tabsInstance.option("selectedIndex", idx);
+
+            if (idx === 0) {
+                // Tab 1: Player (Phân tích Timeline)
+                $("#tab-player-content").show();
+                $("#tab-library-content").hide();
+                window.TIMELINE_ACTIVE = true;
+
+                setTimeout(function () {
+                    if (window.redrawTimeline) window.redrawTimeline();
+                }, 80);
+
+                if (window.CURRENT_VIDEO_ID > 0 && window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', '@Url.Action("Index", "Home")?videoId=' + window.CURRENT_VIDEO_ID);
+                }
+            } else if (idx === 1) {
+                // Tab 2: Library (Thư viện video)
+                $("#tab-player-content").hide();
+                $("#tab-library-content").show();
+                window.TIMELINE_ACTIVE = false;
+
+                var v = document.getElementById("video");
+                if (v && !v.paused) v.pause();
+
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', '@Url.Action("Index", "Home")');
+                }
+            }
         }
-    };
 
-    xhr.onerror = function() {
-        alert('Lỗi kết nối khi tải video lên máy chủ!');
-        btn.disabled = false;
-        prog.style.display = 'none';
-    };
+        $(function () {
+            // Khởi tạo DevExtreme dxTabs trên Header
+            $("#main-tabs").dxTabs({
+                dataSource: tabItems,
+                selectedIndex: 0, // Mặc định ở trang chủ (Tab 1: Player), không cần chuyển qua thư viện ngay
+                onItemClick: function (e) {
+                    switchTab(e.itemIndex);
+                }
+            });
 
-    xhr.send(formData);
-});
+            tabsInstance = $("#main-tabs").dxTabs("instance");
 
-// Dynamic Filtering, Searching, and Sorting for Video Library
-function onLibrarySearchOrFilter() {
-    var searchInput = document.getElementById('lib-search-input');
-    var filterSelect = document.getElementById('lib-filter-select');
-    var sortSelect = document.getElementById('lib-sort-select');
+            // Mặc định kích hoạt Tab 1 (Player)
+            switchTab(0);
 
-    var query = (searchInput ? searchInput.value : '').toLowerCase().trim();
-    var filter = filterSelect ? filterSelect.value : 'all';
-    var sort = sortSelect ? sortSelect.value : 'newest';
-
-    var container = document.getElementById('video-list-rows');
-    if (!container) return;
-    var rows = Array.from(container.children);
-
-    var visibleCount = 0;
-
-    rows.forEach(function(row) {
-        var title = row.getAttribute('data-title') || '';
-        var segments = parseInt(row.getAttribute('data-segments') || '0', 10);
-
-        var matchesSearch = !query || title.indexOf(query) !== -1;
-        var matchesFilter = true;
-        if (filter === 'has-segments') matchesFilter = (segments > 0);
-        else if (filter === 'no-segments') matchesFilter = (segments === 0);
-
-        if (matchesSearch && matchesFilter) {
-            row.style.display = '';
-            visibleCount++;
-        } else {
-            row.style.display = 'none';
-        }
-    });
-
-    // Sort visible rows
-    rows.sort(function(a, b) {
-        if (sort === 'newest') {
-            return (parseInt(b.getAttribute('data-date') || '0', 10) - parseInt(a.getAttribute('data-date') || '0', 10));
-        } else if (sort === 'oldest') {
-            return (parseInt(a.getAttribute('data-date') || '0', 10) - parseInt(b.getAttribute('data-date') || '0', 10));
-        } else if (sort === 'name-asc') {
-            return (a.getAttribute('data-title') || '').localeCompare(b.getAttribute('data-title') || '');
-        } else if (sort === 'name-desc') {
-            return (b.getAttribute('data-title') || '').localeCompare(a.getAttribute('data-title') || '');
-        } else if (sort === 'duration') {
-            return (parseFloat(b.getAttribute('data-duration') || '0') - parseFloat(a.getAttribute('data-duration') || '0'));
-        } else if (sort === 'size') {
-            return (parseFloat(b.getAttribute('data-size') || '0') - parseFloat(a.getAttribute('data-size') || '0'));
-        }
-        return 0;
-    });
-
-    // Re-append sorted rows
-    rows.forEach(function(row) {
-        container.appendChild(row);
-    });
-
-    // Show empty search state if no matches
-    var noRes = document.getElementById('no-results-msg');
-    if (noRes) {
-        noRes.style.display = (visibleCount === 0) ? 'block' : 'none';
-    }
-}
-
-// Switch between List and Grid view modes
-function setLibraryViewMode(mode) {
-    var container = document.getElementById('video-list-container');
-    var btnList = document.getElementById('btn-view-list');
-    var btnGrid = document.getElementById('btn-view-grid');
-    if (!container) return;
-
-    if (mode === 'grid') {
-        container.classList.add('mode-grid');
-        if (btnList) btnList.classList.remove('active');
-        if (btnGrid) btnGrid.classList.add('active');
-    } else {
-        container.classList.remove('mode-grid');
-        if (btnGrid) btnGrid.classList.remove('active');
-        if (btnList) btnList.classList.add('active');
-    }
-}
-
-// Row click selection
-function selectVideoRow(row, e) {
-    if (e.target.closest('.vl-col-actions') || e.target.closest('.vl-col-thumb')) return;
-    document.querySelectorAll('.video-list-row').forEach(function(r) { r.classList.remove('selected'); });
-    row.classList.add('selected');
-}
-
-// Dropdown menu toggle
-function toggleRowMenu(btn, e) {
-    e.stopPropagation();
-    var dropdown = btn.nextElementSibling;
-    var isShown = dropdown.classList.contains('show');
-
-    // Close all other dropdowns
-    document.querySelectorAll('.vl-dropdown.show').forEach(function(d) {
-        d.classList.remove('show');
-    });
-
-    if (!isShown) {
-        dropdown.classList.add('show');
-    }
-}
-
-// Confirm Delete Video
-function confirmDeleteVideo(id, title) {
-    if (confirm('Bạn có chắc chắn muốn xoá video "' + title + '" và tất cả mốc thời gian đã đánh dấu?')) {
-        var form = document.getElementById('del-form-' + id);
-        if (form) form.submit();
-    }
-}
-
-// Hide dropdowns on outside click
-document.addEventListener('click', function(e) {
-    if (!e.target.closest('.vl-col-actions')) {
-        document.querySelectorAll('.vl-dropdown.show').forEach(function(d) {
-            d.classList.remove('show');
+            // Nếu ban đầu có videoId, tự động nạp video vào Player
+            if (@initialVideoId > 0) {
+                window.appTabs.openVideo(@initialVideoId, null, true);
+            }
         });
-    }
-});
 
-// Auto-fetch missing video durations in background on Index page load
-document.addEventListener('DOMContentLoaded', function() {
-    var rows = document.querySelectorAll('.video-list-row');
-    rows.forEach(function(row) {
-        var dur = parseFloat(row.getAttribute('data-duration') || '0');
-        if (dur <= 0) {
-            var videoId = row.getAttribute('data-id');
-            var streamUrl = row.getAttribute('data-stream-url');
-            if (videoId && streamUrl) {
-                var tempVideo = document.createElement('video');
-                tempVideo.preload = 'metadata';
-                tempVideo.src = streamUrl;
-                tempVideo.onloadedmetadata = function() {
-                    if (tempVideo.duration && tempVideo.duration > 0) {
-                        var realDur = tempVideo.duration;
-                        row.setAttribute('data-duration', realDur);
+        // ── Quản lý chuyển đổi Tab toàn cục ─────────────────────────
+        window.appTabs = {
+            openVideo: function (videoId, videoTitle, isInitial) {
+                if (!videoId) return;
 
-                        // Update UI duration text
-                        var durEl = row.querySelector('.vl-col-duration');
-                        if (durEl) {
-                            durEl.textContent = formatDurationJS(realDur);
+                // Nếu đang có thay đổi chưa lưu, cảnh báo người dùng
+                if (!isInitial && window.isTimelineDirty && window.isTimelineDirty()) {
+                    if (!confirm("Bạn có các thay đổi chưa được lưu vào cơ sở dữ liệu. Bạn có chắc muốn đổi sang video khác?")) {
+                        return;
+                    }
+                }
+
+                // Gọi API lấy thông tin chi tiết video và segments
+                fetch('@Url.Action("GetSessionJson", "Video")/' + videoId)
+                    .then(function (res) {
+                        if (!res.ok) throw new Error("Không thể tải dữ liệu video.");
+                        return res.json();
+                    })
+                    .then(function (data) {
+                        if (!data.success || !data.session) {
+                            alert(data.message || "Không tìm thấy dữ liệu video.");
+                            return;
                         }
 
-                        // Save to DB via API
-                        fetch('@Url.Content("~/api/segments/video/")' + videoId + '/duration', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ duration: realDur })
-                        });
-                    }
-                };
+                        var s = data.session;
+                        window.CURRENT_VIDEO_ID = s.id;
+
+                        // Cập nhật tiêu đề Tab 1 (Player)
+                        if (tabsInstance) {
+                            var items = tabsInstance.option("dataSource");
+                            items[0].text = "Phân tích: " + s.title;
+                            tabsInstance.option("dataSource", items);
+                            setTimeout(function () {
+                                var tab1El = document.querySelector("#main-tabs .dx-tab:first-child");
+                                if (tab1El) tab1El.setAttribute("title", s.title);
+                            }, 50);
+                        }
+
+                        // Nạp dữ liệu vào timeline
+                        if (window.loadVideoSession) {
+                            window.loadVideoSession(s);
+                        }
+
+                        // Chuyển sang Tab 1 (Player)
+                        switchTab(0);
+                    })
+                    .catch(function (err) {
+                        alert("Lỗi khi nạp video: " + err.message);
+                    });
+            },
+
+            switchToLibrary: function () {
+                switchTab(1);
+            },
+
+            isPlayerActive: function () {
+                return tabsInstance && tabsInstance.option("selectedIndex") === 0;
+            }
+        };
+
+        // ── Script Thư viện: Upload & Lọc danh sách video ───────────
+        function onFileChosen(input) {
+            if (!input.files.length) return;
+            var name = input.files[0].name;
+            var chosen = document.getElementById('chosen-name');
+            if (chosen) {
+                chosen.textContent = '📎 ' + name;
+                chosen.style.display = 'block';
+            }
+            var titleInput = document.getElementById('title');
+            if (titleInput && !titleInput.value) {
+                titleInput.value = name.replace(/\.[^.]+$/, '');
             }
         }
-    });
-});
 
-function formatDurationJS(sec) {
-    if (!sec || sec <= 0) return "--:--";
-    var h = Math.floor(sec / 3600);
-    var m = Math.floor((sec % 3600) / 60);
-    var s = Math.floor(sec % 60);
-    var mm = ('0' + m).slice(-2);
-    var ss = ('0' + s).slice(-2);
-    return h > 0 ? (h + ':' + mm + ':' + ss) : (mm + ':' + ss);
-}
-</script>
-}
+        // Drag & drop on upload zone
+        var dz = document.getElementById('drop-zone');
+        if (dz) {
+            dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('dz-over'); });
+            dz.addEventListener('dragleave', function() { dz.classList.remove('dz-over'); });
+            dz.addEventListener('drop', function(e) {
+                e.preventDefault(); dz.classList.remove('dz-over');
+                var fi = document.getElementById('file');
+                if (fi && e.dataTransfer.files.length) {
+                    fi.files = e.dataTransfer.files;
+                    onFileChosen(fi);
+                }
+            });
+        }
 
+        // Upload AJAX
+        var uploadForm = document.getElementById('upload-form');
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', function(e) {
+                var fi = document.getElementById('file');
+                if (!fi.files || !fi.files.length) return;
+
+                e.preventDefault();
+                var file = fi.files[0];
+                var title = document.getElementById('title').value;
+
+                var btn   = document.getElementById('upload-btn');
+                var prog  = document.getElementById('upload-progress');
+                var fill  = document.getElementById('progress-fill');
+                var ptext = document.querySelector('.progress-text');
+
+                btn.disabled = true;
+                prog.style.display = 'block';
+                fill.style.width = '2%';
+                ptext.textContent = 'Đang chuẩn bị lưu video...';
+
+                var formData = new FormData();
+                formData.append('file', file);
+                formData.append('title', title);
+
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', '@Url.Action("UploadAjax", "Home")', true);
+
+                xhr.upload.onprogress = function(pe) {
+                    if (pe.lengthComputable) {
+                        var pct = Math.round((pe.loaded / pe.total) * 95);
+                        fill.style.width = pct + '%';
+                        ptext.textContent = 'Đang ghi video vào máy: ' + pct + '%...';
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            var res = JSON.parse(xhr.responseText);
+                            if (res.success && res.redirectUrl) {
+                                fill.style.width = '100%';
+                                ptext.textContent = 'Đã lưu video thành công! Đang chuyển tiếp...';
+                                window.location.href = res.redirectUrl;
+                            } else {
+                                throw new Error(res.message || 'Lỗi khi lưu video!');
+                            }
+                        } catch (err) {
+                            alert('Lỗi: ' + err.message);
+                            btn.disabled = false;
+                            prog.style.display = 'none';
+                        }
+                    } else {
+                        alert('Lỗi máy chủ HTTP ' + xhr.status);
+                        btn.disabled = false;
+                        prog.style.display = 'none';
+                    }
+                };
+
+                xhr.onerror = function() {
+                    alert('Lỗi kết nối khi tải video lên máy chủ!');
+                    btn.disabled = false;
+                    prog.style.display = 'none';
+                };
+
+                xhr.send(formData);
+            });
+        }
+
+        // Lọc, tìm kiếm và sắp xếp Thư viện video
+        function onLibrarySearchOrFilter() {
+            var searchInput = document.getElementById('lib-search-input');
+            var filterSelect = document.getElementById('lib-filter-select');
+            var sortSelect = document.getElementById('lib-sort-select');
+
+            var query = (searchInput ? searchInput.value : '').toLowerCase().trim();
+            var filter = filterSelect ? filterSelect.value : 'all';
+            var sort = sortSelect ? sortSelect.value : 'newest';
+
+            var container = document.getElementById('video-list-rows');
+            if (!container) return;
+            var rows = Array.from(container.children);
+            var visibleCount = 0;
+
+            rows.forEach(function(row) {
+                var title = row.getAttribute('data-title') || '';
+                var segments = parseInt(row.getAttribute('data-segments') || '0', 10);
+
+                var matchesSearch = !query || title.indexOf(query) !== -1;
+                var matchesFilter = true;
+                if (filter === 'has-segments') matchesFilter = (segments > 0);
+                else if (filter === 'no-segments') matchesFilter = (segments === 0);
+
+                if (matchesSearch && matchesFilter) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Sắp xếp
+            rows.sort(function(a, b) {
+                if (sort === 'newest') {
+                    return (parseInt(b.getAttribute('data-date') || '0', 10) - parseInt(a.getAttribute('data-date') || '0', 10));
+                } else if (sort === 'oldest') {
+                    return (parseInt(a.getAttribute('data-date') || '0', 10) - parseInt(b.getAttribute('data-date') || '0', 10));
+                } else if (sort === 'name-asc') {
+                    return (a.getAttribute('data-title') || '').localeCompare(b.getAttribute('data-title') || '');
+                } else if (sort === 'name-desc') {
+                    return (b.getAttribute('data-title') || '').localeCompare(a.getAttribute('data-title') || '');
+                } else if (sort === 'duration') {
+                    return (parseFloat(b.getAttribute('data-duration') || '0') - parseFloat(a.getAttribute('data-duration') || '0'));
+                } else if (sort === 'size') {
+                    return (parseFloat(b.getAttribute('data-size') || '0') - parseFloat(a.getAttribute('data-size') || '0'));
+                }
+                return 0;
+            });
+
+            rows.forEach(function(row) { container.appendChild(row); });
+
+            var noRes = document.getElementById('no-results-msg');
+            if (noRes) noRes.style.display = (visibleCount === 0) ? 'block' : 'none';
+        }
+
+        // Chuyển view List / Grid
+        function setLibraryViewMode(mode) {
+            var container = document.getElementById('video-list-container');
+            var btnList = document.getElementById('btn-view-list');
+            var btnGrid = document.getElementById('btn-view-grid');
+            if (!container) return;
+
+            if (mode === 'grid') {
+                container.classList.add('mode-grid');
+                if (btnList) btnList.classList.remove('active');
+                if (btnGrid) btnGrid.classList.add('active');
+            } else {
+                container.classList.remove('mode-grid');
+                if (btnGrid) btnGrid.classList.remove('active');
+                if (btnList) btnList.classList.add('active');
+            }
+        }
+
+        function selectVideoRow(row, e) {
+            if (e.target.closest('.vl-col-actions') || e.target.closest('.vl-col-thumb')) return;
+            document.querySelectorAll('.video-list-row').forEach(function(r) { r.classList.remove('selected'); });
+            row.classList.add('selected');
+        }
+
+        function toggleRowMenu(btn, e) {
+            e.stopPropagation();
+            var dropdown = btn.nextElementSibling;
+            var isShown = dropdown.classList.contains('show');
+            document.querySelectorAll('.vl-dropdown.show').forEach(function(d) { d.classList.remove('show'); });
+            if (!isShown) dropdown.classList.add('show');
+        }
+
+        function confirmDeleteVideo(id, title) {
+            if (confirm('Bạn có chắc chắn muốn xoá video "' + title + '" và tất cả mốc thời gian đã đánh dấu?')) {
+                var form = document.getElementById('del-form-' + id);
+                if (form) form.submit();
+            }
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.vl-col-actions')) {
+                document.querySelectorAll('.vl-dropdown.show').forEach(function(d) { d.classList.remove('show'); });
+            }
+        });
+
+        // Tự động kiểm tra thời lượng video nếu chưa có
+        document.addEventListener('DOMContentLoaded', function() {
+            var rows = document.querySelectorAll('.video-list-row');
+            rows.forEach(function(row) {
+                var dur = parseFloat(row.getAttribute('data-duration') || '0');
+                if (dur <= 0) {
+                    var videoId = row.getAttribute('data-id');
+                    var streamUrl = row.getAttribute('data-stream-url');
+                    if (videoId && streamUrl) {
+                        var tempVideo = document.createElement('video');
+                        tempVideo.preload = 'metadata';
+                        tempVideo.src = streamUrl;
+                        tempVideo.onloadedmetadata = function() {
+                            if (tempVideo.duration && tempVideo.duration > 0) {
+                                var realDur = tempVideo.duration;
+                                row.setAttribute('data-duration', realDur);
+                                var durEl = row.querySelector('.vl-col-duration');
+                                if (durEl) durEl.textContent = formatDurationJS(realDur);
+
+                                fetch('@Url.Content("~/api/segments/video/")' + videoId + '/duration', {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ duration: realDur })
+                                });
+                            }
+                        };
+                    }
+                }
+            });
+        });
+
+        function formatDurationJS(sec) {
+            if (!sec || sec <= 0) return "--:--";
+            var h = Math.floor(sec / 3600);
+            var m = Math.floor((sec % 3600) / 60);
+            var s = Math.floor(sec % 60);
+            var mm = ('0' + m).slice(-2);
+            var ss = ('0' + s).slice(-2);
+            return h > 0 ? (h + ':' + mm + ':' + ss) : (mm + ':' + ss);
+        }
+    </script>
+    <script src="~/Scripts/timeline.js?v=@DateTime.Now.Ticks"></script>
+}

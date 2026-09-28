@@ -185,7 +185,7 @@
         return apiUpdateSegment(id, { label: label });
     }
     function apiUpdateDuration(dur) {
-        return apiCall('PUT', '/api/segments/video/' + VIDEO_ID + '/duration', { duration: dur });
+        return apiCall('PUT', '/api/segments/video/' + (VIDEO_ID || window.VIDEO_ID) + '/duration', { duration: dur });
     }
     function apiSaveBatch(videoId, segs) {
         var payload = {
@@ -391,12 +391,41 @@
     }
 
 
-    // ── Bootstrap from server-seeded data ────────────────────────────
-    function init() {
-        initialSegments = (window.INIT_SEGMENTS || []).map(function (s) { return Object.assign({}, s); });
-        segments = initialSegments.map(function (s) { return Object.assign({}, s); });
+    // ── Dynamic Video Session Loader ──────────────────────────────────
+    function loadVideoSession(sessionData) {
+        if (!sessionData || !sessionData.id) return;
+        VIDEO_ID = sessionData.id;
+        window.VIDEO_ID = sessionData.id;
+        duration = sessionData.duration || 0;
+        window.VIDEO_DURATION = duration;
+        DRAFT_STORAGE_KEY = 'video_timeline_draft_' + VIDEO_ID;
 
-        initColorPalette();
+        var titleEl = G('player-video-title');
+        if (titleEl) titleEl.textContent = '/ ' + (sessionData.title || '');
+
+        var emptyEl = G('player-empty-state');
+        var mainEl = G('player-main-content');
+        if (emptyEl) emptyEl.style.display = 'none';
+        if (mainEl) mainEl.style.display = 'block';
+
+        if (videoEl && sessionData.videoUrl) {
+            videoEl.pause();
+            var srcEl = videoEl.querySelector('source');
+            if (srcEl) {
+                srcEl.src = sessionData.videoUrl;
+            } else {
+                videoEl.src = sessionData.videoUrl;
+            }
+            videoEl.load();
+        }
+
+        pendingStart = null;
+        pendingEnd = null;
+        if (overlapW) overlapW.style.display = 'none';
+
+        initialSegments = (sessionData.segments || []).map(function (s) { return Object.assign({}, s); });
+        segments = initialSegments.map(function (s) { return Object.assign({}, s); });
+        setDirty(false);
 
         // Kiểm tra xem có bản nháp chưa lưu trước đó trong LocalStorage không
         try {
@@ -426,14 +455,18 @@
             }
         } catch (e) { }
 
-        if (!duration && videoEl && isFinite(videoEl.duration) && videoEl.duration > 0) {
-            duration = videoEl.duration;
-        }
-
         if (duration > 0) {
-            durDisp.textContent = fmtDurationMs(duration);
+            if (durDisp) durDisp.textContent = fmtDurationMs(duration);
             buildTicks();
         }
+        updateDirtyUI();
+        render();
+        updateSel();
+    }
+
+    // ── Bootstrap from server-seeded data ────────────────────────────
+    function init() {
+        initColorPalette();
 
         // Setup filter tabs
         ['all', 'normal', 'incident'].forEach(function (f) {
@@ -448,9 +481,20 @@
             }
         });
 
-        updateDirtyUI();
-        render();
-        updateSel();
+        if (window.VIDEO_ID) {
+            loadVideoSession({
+                id: window.VIDEO_ID,
+                title: window.VIDEO_TITLE,
+                duration: window.VIDEO_DURATION,
+                videoUrl: window.VIDEO_URL,
+                segments: window.INIT_SEGMENTS || []
+            });
+        } else {
+            var emptyEl = G('player-empty-state');
+            var mainEl = G('player-main-content');
+            if (emptyEl) emptyEl.style.display = 'flex';
+            if (mainEl) mainEl.style.display = 'none';
+        }
     }
 
     // ── Build tick marks ─────────────────────────────────────────────
@@ -1240,6 +1284,10 @@
 
     // ── Keyboard shortcuts ────────────────────────────────────────────
     document.addEventListener('keydown', function (e) {
+        // Chỉ hoạt động khi Tab Player đang active
+        if (window.TIMELINE_ACTIVE === false) return;
+        if (window.appTabs && !window.appTabs.isPlayerActive()) return;
+
         var d = getDuration();
         if (!d) return;
         if (['INPUT', 'TEXTAREA'].indexOf(document.activeElement.tagName) !== -1) return;
@@ -1344,6 +1392,14 @@
             tblWrap.scrollLeft = scrollLeft - walk;
         });
     }
+
+    // ── Export public API to window ──────────────────────────────────
+    window.loadVideoSession = loadVideoSession;
+    window.isTimelineDirty = function () { return isDirty; };
+    window.redrawTimeline = function () {
+        if (duration > 0) buildTicks();
+        render();
+    };
 
     // ── Start ─────────────────────────────────────────────────────────
     init();

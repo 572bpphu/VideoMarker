@@ -5,30 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
     <title>@ViewBag.Title – 🎬 Video Timeline Marker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <!-- DevExtreme Light Theme -->
+    <link rel="stylesheet" href="https://cdn3.devexpress.com/jslib/23.2.5/css/dx.light.css" />
     <link rel="stylesheet" href="~/Content/Site.css?v=@DateTime.Now.Ticks" />
 </head>
 <body>
     <nav class="app-nav">
         <div class="nav-inner">
-            <a href="@Url.Action("Index","Home")" class="nav-brand"> Video Timeline Marker</a>
-            <div class="nav-links">
-                <a href="@Url.Action("Index","Home")" class="nav-link"> Thư viện video</a>
+            <div class="header-tabs-container">
+                @RenderSection("HeaderTabs", required: false)
             </div>
         </div>
     </nav>
 
     @if (TempData["Success"] != null)
     {
-        <div class="flash flash-ok"> @TempData["Success"]</div>
+        <div class="flash flash-ok">@TempData["Success"]</div>
     }
     @if (TempData["Error"] != null)
     {
-        <div class="flash flash-err"> @TempData["Error"]</div>
+        <div class="flash flash-err">@TempData["Error"]</div>
     }
 
     <main class="main-content">
         @RenderBody()
     </main>
+
+    <!-- Core Scripts: jQuery & DevExtreme -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn3.devexpress.com/jslib/23.2.5/js/dx.all.js"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {

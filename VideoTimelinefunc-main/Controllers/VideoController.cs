@@ -17,22 +17,49 @@ namespace VideoTimelineApp.Controllers
         // GET /Video/Player/7
         public async Task<ActionResult> Player(int id)
         {
+            var session = await _db.VideoSessions.FindAsync(id);
+            if (session == null) return HttpNotFound();
+
+            // Chuyển tiếp sang trang tổng hợp có DevExtreme Tabs
+            return RedirectToAction("Index", "Home", new { videoId = id });
+        }
+
+        // GET /Video/GetSessionJson/7
+        [HttpGet]
+        public async Task<ActionResult> GetSessionJson(int id)
+        {
             var session = await _db.VideoSessions
                 .Include(v => v.Segments)
                 .FirstOrDefaultAsync(v => v.Id == id);
 
-            if (session == null) return HttpNotFound();
+            if (session == null)
+                return Json(new { success = false, message = "Không tìm thấy video." }, JsonRequestBehavior.AllowGet);
 
-            // Ưu tiên sử dụng endpoint phát stream của VideoController
-            string videoUrl = Url.Action("Stream", "Video", new { id = session.Id });
-
-            var vm = new PlayerViewModel
+            return Json(new
             {
-                Session  = session,
-                VideoUrl = videoUrl
-            };
-
-            return View(vm);
+                success = true,
+                session = new
+                {
+                    id = session.Id,
+                    title = session.Title,
+                    originalFileName = session.OriginalFileName,
+                    duration = session.Duration,
+                    fileSize = session.FileSize,
+                    videoUrl = Url.Action("Stream", "Video", new { id = session.Id }),
+                    segments = session.Segments
+                        .OrderBy(s => s.StartTime)
+                        .Select(s => new
+                        {
+                            id = s.Id,
+                            label = s.Label,
+                            startTime = s.StartTime,
+                            endTime = s.EndTime,
+                            duration = s.EndTime - s.StartTime,
+                            type = s.Type,
+                            color = s.Color
+                        }).ToList()
+                }
+            }, JsonRequestBehavior.AllowGet);
         }
 
         // GET /Video/Stream/7
